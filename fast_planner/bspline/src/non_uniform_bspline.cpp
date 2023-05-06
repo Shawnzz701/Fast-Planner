@@ -481,4 +481,30 @@ void NonUniformBspline::getMeanAndMaxAcc(double& mean_a, double& max_a) {
   mean_a   = mean_acc;
   max_a    = max_acc;
 }
+
+double compareTrajectoryUsingDTW(const fast_planner::PolynomialPrediction& target_prediction,
+                                 double resolution) {
+  // 1. Sample points from the current B-spline
+  double um, um_p;
+  getTimeSpan(um, um_p);
+  std::vector<Eigen::Vector3d> current_points;
+  for (double u = um; u <= um_p; u += resolution) {
+    current_points.push_back(evaluateDeBoor(u));
+  }
+
+  // 2. Sample points from the target prediction
+  double t1 = target_prediction.t1;
+  double t2 = target_prediction.t2;
+  std::vector<Eigen::Vector3d> target_points;
+  for (double t = t1; t <= t2; t += resolution) {
+    target_points.push_back(target_prediction.evaluate(t));
+  }
+
+  // 3. Calculate the Dynamic Time Warping distance
+  DTW dtw;
+  double dtw_distance = dtw.calculateDTWDistance(current_points, target_points);
+
+  return dtw_distance;
+}
+
 }  // namespace fast_planner

@@ -58,6 +58,9 @@ void FastPlannerManager::initPlanModules(ros::NodeHandle& nh) {
   edt_environment_.reset(new EDTEnvironment);
   edt_environment_->setMap(sdf_map_);
 
+  dynamic_obj_predictor.reset(new ObjPredictor(nh));
+  dynamic_obj_predictor->init();
+
   if (use_geometric_path) {
     geo_path_finder_.reset(new Astar);
     geo_path_finder_->setParam(nh);
@@ -397,10 +400,33 @@ bool FastPlannerManager::topoReplan(bool collide) {
 }
 
 void FastPlannerManager::selectBestTraj(NonUniformBspline& traj) {
-  // sort by jerk
+  // sort by jerk and DTW similarity
   vector<NonUniformBspline>& trajs = plan_data_.topo_traj_pos2_;
+
+  // Get the predicted trajectories from obj_predictor
+  auto predicted_trajs = obj_predictor_->getPredictionTraj();
+
   sort(trajs.begin(), trajs.end(),
-       [&](NonUniformBspline& tj1, NonUniformBspline& tj2) { return tj1.getJerk() < tj2.getJerk(); });
+       [&](NonUniformBspline& tj1, NonUniformBspline& tj2) {
+         double min_dtw_tj1 = std::numeric_limits<double>::max();
+         double min_dtw_tj2 = std::numeric_limits<double>::max();
+
+         for (const auto& predicted_traj : *predicted_trajs) {
+           // Calculate DTW similarity for tj1
+           double dtw_tj1 = tj1.compareTrajectoryUsingDTW(predicted_traj);
+
+           // Calculate DTW similarity for tj2
+           double dtw_tj2 = tj2.compareTrajectoryUsingDTW(predicted_traj);
+
+           min_dtw_tj1 = std::min(min_dtw_tj1, dtw_tj1);
+           min_dtw_tj2 = std::min(min_dtw_tj2, dtw_tj2);
+         }
+
+         // Compare jerk and DTW similarity
+         double alpha = 0.5;  // Adjust this value to balance the importance of jerk and DTW similarity
+         return alpha * tj1.getJerk() + (1 - alpha) * min_dtw_tj1 < alpha * tj2.getJerk() + (1 - alpha) * min_dtw_tj2;
+       });
+
   traj = trajs[0];
 }
 

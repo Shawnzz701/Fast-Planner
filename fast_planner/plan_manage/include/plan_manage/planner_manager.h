@@ -77,6 +77,7 @@ private:
   unique_ptr<KinodynamicAstar> kino_path_finder_;
   unique_ptr<TopologyPRM> topo_prm_;
   vector<BsplineOptimizer::Ptr> bspline_optimizers_;
+  unique_ptr<ObjPredictor> dynamic_obj_predictor;
 
   void updateTrajInfo();
 
